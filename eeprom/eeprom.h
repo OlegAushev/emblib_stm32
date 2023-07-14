@@ -39,6 +39,8 @@ private:
     const int available_page_bytes;
     const int available_page_count;
 
+    uint8_t* _backup_buf;
+
     struct {
         uint32_t read;
         uint32_t write;
@@ -50,6 +52,7 @@ private:
     } _errors;
 public:
     Storage(DriverInterface& driver_, uint32_t (*calc_crc32_func_)(const uint8_t*, int));
+    ~Storage();
     Error read(int page, uint8_t* buf, int len, std::chrono::milliseconds timeout);
     Error write(int page, const uint8_t* buf, int len, std::chrono::milliseconds timeout);
 

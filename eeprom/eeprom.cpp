@@ -17,6 +17,13 @@ Storage::Storage(DriverInterface& driver_, uint32_t (*calc_crc32_func_)(const ui
     _errors.primary_data_corrupted = 0;
     _errors.secondary_data_corrupted = 0;
     _errors.fatal = 0;
+
+    _backup_buf = new uint8_t[available_page_bytes];
+}
+
+
+Storage::~Storage() {
+    delete[] _backup_buf;
 }
 
 
@@ -97,9 +104,7 @@ Error Storage::read(int page, uint8_t* buf, int len, std::chrono::milliseconds t
     }
 
 read_backup:
-    uint8_t buf_backup[available_page_bytes];
-
-    error = _driver.read(page+available_page_count, 0, buf_backup, len, timeout);
+    error = _driver.read(page+available_page_count, 0, _backup_buf, len, timeout);
     if (error != Error::none) {
         ++_errors.read;
         goto read_end;
@@ -112,7 +117,7 @@ read_backup:
     }
 
     memcpy(&secondary_stored_crc, crc_bytes, sizeof(uint32_t));
-    secondary_crc = _calc_crc32(buf_backup, len);
+    secondary_crc = _calc_crc32(_backup_buf, len);
     if (secondary_crc == secondary_stored_crc) {
         secondary_ok = true;
     } else {
@@ -132,8 +137,8 @@ read_end:
     } else if (!primary_ok && secondary_ok) {
         // restore backup
         ++_errors.primary_data_corrupted;
-        memcpy(buf, buf_backup, len); // update output buffer
-        _driver.write(page, 0, buf_backup, len, timeout);
+        memcpy(buf, _backup_buf, len); // update output buffer
+        _driver.write(page, 0, _backup_buf, len, timeout);
         memcpy(crc_bytes, &secondary_crc, 4);
         _driver.write(page, len, crc_bytes, 4, timeout);
         return Error::none;
